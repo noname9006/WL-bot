@@ -197,6 +197,26 @@ class InviteBot {
             // Get last update info
             const lastUpdate = this.botState.getLastUpdateInfo();
             
+            // Get whitelisted roles
+            const whitelistedRoleIds = this.whitelist.getAllRoles();
+            let roleText = "";
+            
+            if (whitelistedRoleIds.length === 0) {
+                roleText = "No roles are currently whitelisted";
+            } else {
+                // Get role names
+                const roleNames = [];
+                for (const roleId of whitelistedRoleIds) {
+                    const role = message.guild.roles.cache.get(roleId);
+                    if (role) {
+                        roleNames.push(role.name);
+                    } else {
+                        roleNames.push(`Unknown Role (ID: ${roleId})`);
+                    }
+                }
+                roleText = roleNames.map(name => `• ${name}`).join('\n');
+            }
+            
             // Create an embedded message
             const embed = new EmbedBuilder()
                 .setColor(0x0099FF)
@@ -208,7 +228,8 @@ class InviteBot {
                     availableCodes
                 ))
                 .addFields(
-                    { name: 'Last Updated', value: `${lastUpdate.date} by ${lastUpdate.user}`, inline: true }
+                    { name: 'Last Updated', value: `${lastUpdate.date} by ${lastUpdate.user}`, inline: false },
+                    { name: 'Whitelisted Roles', value: `${roleText}\n\n*Note: Server administrators always have access regardless of whitelist.*`, inline: false }
                 )
                 .setTimestamp()
                 .setFooter({ text: messages.admin.whitelist.statsFooter() });

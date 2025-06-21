@@ -136,14 +136,14 @@ const messages = {
         whitelistError: (error) => 
             `Whitelist error: ${error.message}`,
             
-        limitsLoaded: (limit) => 
-            `Claim limits loaded: ${limit} codes claimable`,
+        botStateLoaded: (limit) => 
+            `Bot state loaded: ${limit} codes claimable`,
             
-        limitsSaved: (limit) => 
-            `Claim limits saved: ${limit} codes claimable`,
+        botStateSaved: (limit) => 
+            `Bot state saved: ${limit} codes claimable`,
             
-        limitsError: (error) => 
-            `Claim limits error: ${error.message}`
+        botStateError: (error) => 
+            `Bot state error: ${error.message}`
     }
 };
 

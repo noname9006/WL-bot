@@ -20,7 +20,7 @@ const config = {
     paths: {
         csvFile: path.join(__dirname, 'invites.csv'),
         whitelistFile: path.join(__dirname, 'whitelist.json'), // Store whitelisted roles
-        limitsFile: path.join(__dirname, 'limits.json') // Store claim limits and settings
+        botStateFile: path.join(__dirname, 'botstate.json') // Store runtime state including claim limits
     },
     
     // Channel configuration
@@ -63,7 +63,8 @@ const config = {
     
     // System settings
     system: {
-        currentDate: '2025-06-21 16:22:26', // Current UTC date for reference
+        currentDate: '2025-06-21 17:30:33', // Current UTC date for reference
+        currentUser: 'noname9006',         // Current user's login
         dateTimeFormat: {
             log: {
                 // Format: YYYY-MM-DD HH:MM:SS

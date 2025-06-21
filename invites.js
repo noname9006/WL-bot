@@ -6,7 +6,7 @@ const path = require('path');
 const config = require('./config');
 const messages = require('./messages');
 const Whitelist = require('./whitelist');
-const ClaimLimits = require('./limits');
+const BotState = require('./botstate');
 
 class InviteBot {
     constructor() {
@@ -25,9 +25,9 @@ class InviteBot {
         // Get channel IDs from config
         this.inviteChannelIds = config.channels.inviteChannels;
         
-        // Initialize whitelist and claim limits
+        // Initialize whitelist and bot state
         this.whitelist = new Whitelist((...args) => this.log(...args));
-        this.claimLimits = new ClaimLimits((...args) => this.log(...args));
+        this.botState = new BotState((...args) => this.log(...args));
         
         this.setupEventHandlers();
     }
@@ -39,9 +39,9 @@ class InviteBot {
     }
 
     async setupEventHandlers() {
-        // Load whitelist and claim limits
+        // Load whitelist and bot state
         await this.whitelist.load();
-        await this.claimLimits.load();
+        await this.botState.load();
         
         this.client.once('ready', () => {
             this.log(messages.system.startupComplete(this.client.user.tag));
@@ -173,7 +173,7 @@ class InviteBot {
         }
         
         try {
-            await this.claimLimits.increaseLimitBy(amount);
+            await this.botState.increaseLimitBy(amount);
             message.reply(messages.admin.whitelist.limitSet(amount));
             this.log(`Claim limit increased by ${amount} by ${userInfo}`);
         } catch (error) {
@@ -191,8 +191,11 @@ class InviteBot {
             const csvData = await this.readCsvFile();
             const totalCodes = csvData.length;
             const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
-            const claimLimit = this.claimLimits.getClaimLimit();
-            const availableCodes = this.claimLimits.getAvailableCodes(totalCodes, claimedCodes);
+            const claimLimit = this.botState.getClaimLimit();
+            const availableCodes = this.botState.getAvailableCodes(totalCodes, claimedCodes);
+            
+            // Get last update info
+            const lastUpdate = this.botState.getLastUpdateInfo();
             
             // Create an embedded message
             const embed = new EmbedBuilder()
@@ -204,6 +207,9 @@ class InviteBot {
                     claimLimit,
                     availableCodes
                 ))
+                .addFields(
+                    { name: 'Last Updated', value: `${lastUpdate.date} by ${lastUpdate.user}`, inline: true }
+                )
                 .setTimestamp()
                 .setFooter({ text: messages.admin.whitelist.statsFooter() });
             
@@ -399,9 +405,9 @@ class InviteBot {
                 this.log(`/claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
             } else {
                 // User doesn't exist, check if we can claim more codes
-                if (!this.claimLimits.canClaimMoreCodes(totalCodes, claimedCodes)) {
+                if (!this.botState.canClaimMoreCodes(totalCodes, claimedCodes)) {
                     // Limit reached
-                    this.log(`/claim failed: Claim limit reached (${claimedCodes}/${this.claimLimits.getClaimLimit()} max) for ${userInfo}`, 'WARN');
+                    this.log(`/claim failed: Claim limit reached (${claimedCodes}/${this.botState.getClaimLimit()} max) for ${userInfo}`, 'WARN');
                     
                     // Create embedded message
                     const embed = new EmbedBuilder()
@@ -428,6 +434,10 @@ class InviteBot {
                     
                     // Update CSV file
                     await this.writeCsvFile(csvData);
+                    
+                    // Update CSV last modified in bot state
+                    await this.botState.updateCsvModified();
+                    
                     this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
                     
                     await interaction.editReply({

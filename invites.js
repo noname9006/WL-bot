@@ -1,66 +1,116 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, AttachmentBuilder, InteractionResponseType } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
-require('dotenv').config();
+
+// Import the config and modules
+const config = require('./config');
+const messages = require('./messages');
+const Whitelist = require('./whitelist');
+const ClaimLimits = require('./limits');
 
 class InviteBot {
     constructor() {
         this.client = new Client({
             intents: [
                 GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent,
+                GatewayIntentBits.GuildMembers
             ]
         });
 
-        this.csvFilePath = path.join(__dirname, 'invites.csv');
+        this.csvFilePath = config.paths.csvFile;
         this.isProcessing = false; // Flag to prevent concurrent processing
         
-        // Parse multiple channel IDs from environment variable
-        this.inviteChannelIds = this.parseChannelIds(process.env.INVITE_CHANNEL);
+        // Get channel IDs from config
+        this.inviteChannelIds = config.channels.inviteChannels;
+        
+        // Initialize whitelist and claim limits
+        this.whitelist = new Whitelist((...args) => this.log(...args));
+        this.claimLimits = new ClaimLimits((...args) => this.log(...args));
         
         this.setupEventHandlers();
     }
 
     // Enhanced logging utility with UTC timestamp
     log(message, level = 'INFO') {
-        const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        const timestamp = config.system.dateTimeFormat.log.timestamp();
         console.log(`[${timestamp} UTC] [${level}] ${message}`);
     }
 
-    parseChannelIds(channelEnv) {
-        if (!channelEnv || channelEnv.trim() === '') {
-            return null; // No restriction
-        }
+    async setupEventHandlers() {
+        // Load whitelist and claim limits
+        await this.whitelist.load();
+        await this.claimLimits.load();
         
-        // Split by comma, trim whitespace, and filter out empty strings
-        const channelIds = channelEnv
-            .split(',')
-            .map(id => id.trim())
-            .filter(id => id !== '');
-            
-        return channelIds.length > 0 ? channelIds : null;
-    }
-
-    setupEventHandlers() {
         this.client.once('ready', () => {
-            this.log(`Bot logged in as ${this.client.user.tag}!`);
+            this.log(messages.system.startupComplete(this.client.user.tag));
             
             if (this.inviteChannelIds) {
-                this.log(`Channel restriction active: ${this.inviteChannelIds.length} channel(s) - ${this.inviteChannelIds.join(', ')}`);
+                this.log(messages.system.channelRestrictionActive(
+                    this.inviteChannelIds.length, 
+                    this.inviteChannelIds.join(', ')
+                ));
             } else {
-                this.log('Channel restriction: Server-wide access enabled');
+                this.log(messages.system.noChannelRestriction());
             }
             
             this.registerSlashCommands();
         });
 
+        // Handle slash commands
         this.client.on('interactionCreate', async (interaction) => {
             if (!interaction.isChatInputCommand()) return;
             
-            if (interaction.commandName === 'twentyone') {
-                await this.handleTwentyOneCommand(interaction);
-            } else if (interaction.commandName === 'export') {
-                await this.handleExportCommand(interaction);
+            if (interaction.commandName === config.commands.claim.name) {
+                await this.handleClaimCommand(interaction);
+            }
+        });
+        
+        // Handle text-based admin commands
+        this.client.on('messageCreate', async (message) => {
+            // Ignore bot messages and messages that don't start with prefix
+            if (message.author.bot || !message.content.startsWith(config.bot.prefix)) return;
+            
+            // Check if user has admin permissions
+            if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                message.reply(messages.admin.notAuthorized());
+                return;
+            }
+            
+            const args = message.content.slice(config.bot.prefix.length).trim().split(/ +/);
+            const command = args.shift().toLowerCase();
+            
+            // Handle whitelist commands
+            if (command === 'wl') {
+                if (args.length === 0) {
+                    // Basic whitelist list command
+                    await this.handleWhitelistCommand(message, []);
+                    return;
+                }
+                
+                const subcommand = args[0].toLowerCase();
+                
+                if (subcommand === 'rm') {
+                    // Handle remove role command
+                    await this.handleWhitelistCommand(message, args);
+                }
+                else if (subcommand === 'set') {
+                    // Handle set limit command
+                    await this.handleSetLimitsCommand(message, args.slice(1));
+                }
+                else if (subcommand === 'check') {
+                    // Handle check status command
+                    await this.handleCheckCommand(message);
+                }
+                else {
+                    // Assume it's a role mention for adding
+                    await this.handleWhitelistCommand(message, args);
+                }
+            }
+            // Handle export command
+            else if (command === 'export') {
+                await this.handleExportCommand(message);
             }
         });
 
@@ -77,59 +127,178 @@ class InviteBot {
     async registerSlashCommands() {
         const commands = [
             new SlashCommandBuilder()
-                .setName('twentyone')
-                .setDescription('Get your invite code for twentyone city'),
-            new SlashCommandBuilder()
-                .setName('export')
-                .setDescription('Export the invites CSV file (Admin only)')
-                .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+                .setName(config.commands.claim.name)
+                .setDescription(config.commands.claim.description)
         ];
 
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        const rest = new REST({ version: '10' }).setToken(config.bot.token);
 
         try {
-            this.log('Starting slash command registration...');
+            this.log(messages.system.slashCommandRegistrationStart());
             
             await rest.put(
                 Routes.applicationCommands(this.client.user.id),
                 { body: commands }
             );
 
-            this.log('Slash commands registered successfully');
+            this.log(messages.system.slashCommandRegistrationComplete());
         } catch (error) {
-            this.log(`Failed to register slash commands: ${error.message}`, 'ERROR');
+            this.log(messages.system.slashCommandRegistrationFailed(error), 'ERROR');
+        }
+    }
+    
+    async handleSetLimitsCommand(message, args) {
+        const userInfo = `${message.author.tag} (${message.author.id})`;
+        this.log(`>wl set command initiated by ${userInfo} in channel ${message.channelId}`);
+        
+        if (args.length === 0) {
+            message.reply(messages.admin.whitelist.limitError());
+            return;
+        }
+        
+        // Get the first argument and check if it starts with +
+        const limitArg = args[0];
+        if (!limitArg.startsWith('+')) {
+            message.reply(messages.admin.whitelist.limitError());
+            return;
+        }
+        
+        // Extract the number part
+        const amountStr = limitArg.substring(1);
+        const amount = parseInt(amountStr, 10);
+        
+        if (isNaN(amount) || amount <= 0) {
+            message.reply(messages.admin.whitelist.limitError());
+            return;
+        }
+        
+        try {
+            await this.claimLimits.increaseLimitBy(amount);
+            message.reply(messages.admin.whitelist.limitSet(amount));
+            this.log(`Claim limit increased by ${amount} by ${userInfo}`);
+        } catch (error) {
+            this.log(`Claim limit update error: ${error.message}`, 'ERROR');
+            message.reply(messages.admin.whitelist.error());
+        }
+    }
+    
+    async handleCheckCommand(message) {
+        const userInfo = `${message.author.tag} (${message.author.id})`;
+        this.log(`>wl check command initiated by ${userInfo} in channel ${message.channelId}`);
+        
+        try {
+            // Get CSV data to calculate statistics
+            const csvData = await this.readCsvFile();
+            const totalCodes = csvData.length;
+            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
+            const claimLimit = this.claimLimits.getClaimLimit();
+            const availableCodes = this.claimLimits.getAvailableCodes(totalCodes, claimedCodes);
+            
+            // Create an embedded message
+            const embed = new EmbedBuilder()
+                .setColor(0x0099FF)
+                .setTitle(messages.admin.whitelist.statsTitle())
+                .setDescription(messages.admin.whitelist.statsDescription(
+                    totalCodes, 
+                    claimedCodes, 
+                    claimLimit,
+                    availableCodes
+                ))
+                .setTimestamp()
+                .setFooter({ text: messages.admin.whitelist.statsFooter() });
+            
+            // Send the embed
+            await message.reply({ embeds: [embed] });
+            this.log(`Status check completed for ${userInfo}`);
+        } catch (error) {
+            this.log(`Status check error: ${error.message}`, 'ERROR');
+            message.reply(messages.admin.whitelist.error());
+        }
+    }
+    
+    async handleWhitelistCommand(message, args) {
+        const userInfo = `${message.author.tag} (${message.author.id})`;
+        this.log(`>wl command initiated by ${userInfo} in channel ${message.channelId}`);
+        
+        // Check if we have any arguments
+        if (args.length === 0) {
+            // List all whitelisted roles
+            const whitelistedRoleIds = this.whitelist.getAllRoles();
+            if (whitelistedRoleIds.length === 0) {
+                message.reply(messages.admin.whitelist.listEmpty());
+                return;
+            }
+            
+            // Get role names
+            const roleNames = [];
+            for (const roleId of whitelistedRoleIds) {
+                const role = message.guild.roles.cache.get(roleId);
+                if (role) {
+                    roleNames.push(role.name);
+                } else {
+                    roleNames.push(`Unknown Role (ID: ${roleId})`);
+                }
+            }
+            
+            message.reply(messages.admin.whitelist.listRoles(roleNames));
+            return;
+        }
+        
+        // Check for "rm" command to remove a role
+        const isRemoveCommand = args[0].toLowerCase() === 'rm';
+        if (isRemoveCommand) {
+            args.shift(); // Remove the "rm" argument
+        }
+        
+        // Check if there's a role mention
+        const roleMention = message.mentions.roles.first();
+        if (!roleMention) {
+            message.reply(messages.admin.whitelist.roleNotFound());
+            return;
+        }
+        
+        try {
+            if (isRemoveCommand) {
+                // Remove role from whitelist
+                const removed = await this.whitelist.removeRole(roleMention.id);
+                if (removed) {
+                    message.reply(messages.admin.whitelist.roleRemoved(roleMention));
+                    this.log(`Role ${roleMention.name} (${roleMention.id}) removed from whitelist by ${userInfo}`);
+                } else {
+                    message.reply(messages.admin.whitelist.roleNotWhitelisted(roleMention));
+                }
+            } else {
+                // Add role to whitelist
+                const added = await this.whitelist.addRole(roleMention.id);
+                if (added) {
+                    message.reply(messages.admin.whitelist.roleAdded(roleMention));
+                    this.log(`Role ${roleMention.name} (${roleMention.id}) added to whitelist by ${userInfo}`);
+                } else {
+                    message.reply(messages.admin.whitelist.roleAlreadyWhitelisted(roleMention));
+                }
+            }
+        } catch (error) {
+            this.log(`Whitelist command error: ${error.message}`, 'ERROR');
+            message.reply(messages.admin.whitelist.error());
         }
     }
 
-    async handleExportCommand(interaction) {
-        const userInfo = `${interaction.user.tag} (${interaction.user.id})`;
-        const channelInfo = `channel ${interaction.channelId}`;
+    async handleExportCommand(message) {
+        const userInfo = `${message.author.tag} (${message.author.id})`;
+        const channelInfo = `channel ${message.channelId}`;
         
-        this.log(`/export command initiated by ${userInfo} in ${channelInfo}`);
+        this.log(`>export command initiated by ${userInfo} in ${channelInfo}`);
 
         try {
-            // Double-check admin permissions
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                this.log(`/export command denied: ${userInfo} lacks administrator permissions`, 'WARN');
-                await interaction.reply({
-                    content: 'You do not have permission to use this command.',
-                    flags: [64] // MessageFlags.Ephemeral
-                });
-                return;
-            }
-
-            await interaction.deferReply();
-            this.log(`/export command authorized for ${userInfo}`);
-
+            await message.reply('Processing export request...');
+            
             // Check if CSV file exists
             try {
                 await fs.access(this.csvFilePath);
                 this.log('CSV file access verified for export');
             } catch (error) {
                 this.log(`CSV export failed: File not found at ${this.csvFilePath}`, 'ERROR');
-                await interaction.editReply({
-                    content: 'CSV file not found. No data to export.'
-                });
+                await message.reply(messages.admin.export.fileNotFound());
                 return;
             }
 
@@ -139,15 +308,20 @@ class InviteBot {
             this.log(`CSV file read successfully: ${lineCount} data rows`);
             
             // Create attachment with timestamp
-            const currentDateTime = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const currentDateTime = config.system.dateTimeFormat.filename.timestamp();
             const filename = `invites_export_${currentDateTime}.csv`;
             
             const attachment = new AttachmentBuilder(Buffer.from(csvContent, 'utf8'), {
                 name: filename
             });
 
-            await interaction.editReply({
-                content: `📊 **CSV Export Generated**\n\`\`\`Exported on: ${new Date().toISOString().replace('T', ' ').slice(0, 19)} UTC\nRequested by: ${interaction.user.tag}\nFilename: ${filename}\nData rows: ${lineCount}\`\`\``,
+            await message.reply({
+                content: messages.admin.export.success(
+                    config.system.dateTimeFormat.log.timestamp(),
+                    message.author.tag,
+                    filename,
+                    lineCount
+                ),
                 files: [attachment]
             });
 
@@ -155,43 +329,51 @@ class InviteBot {
 
         } catch (error) {
             this.log(`CSV export error for ${userInfo}: ${error.message}`, 'ERROR');
-            await interaction.editReply({
-                content: 'An error occurred while exporting the CSV file. Please try again later.'
-            });
+            await message.reply(messages.admin.export.error());
         }
     }
 
-    async handleTwentyOneCommand(interaction) {
+    async handleClaimCommand(interaction) {
         const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
         const channelInfo = `channel ${interaction.channelId}`;
         
-        this.log(`/twentyone command initiated by ${userInfo} in ${channelInfo}`);
+        this.log(`/claim command initiated by ${userInfo} in ${channelInfo}`);
 
         // Check if command is used in the correct channel(s)
         if (this.inviteChannelIds && !this.inviteChannelIds.includes(interaction.channelId)) {
-            this.log(`/twentyone command blocked: ${userInfo} used command in restricted ${channelInfo}`, 'WARN');
+            this.log(`/claim command blocked: ${userInfo} used command in restricted ${channelInfo}`, 'WARN');
             await interaction.reply({
-                content: 'Not available in this channel',
-                flags: [64] // MessageFlags.Ephemeral
+                content: messages.claim.channelRestricted(),
+                ephemeral: true
+            });
+            return;
+        }
+        
+        // Check if user can claim code (admin or whitelisted role)
+        if (!this.whitelist.memberCanClaimCode(interaction.member)) {
+            this.log(`/claim command denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
+            await interaction.reply({
+                content: messages.claim.notEligible(),
+                ephemeral: true
             });
             return;
         }
 
         // Check if another command is being processed
         if (this.isProcessing) {
-            this.log(`/twentyone command queued: ${userInfo} - system busy`);
+            this.log(`/claim command queued: ${userInfo} - system busy`);
             await interaction.reply({
-                content: 'Please wait, another command is being processed...',
-                flags: [64] // MessageFlags.Ephemeral
+                content: messages.claim.processing(),
+                ephemeral: true
             });
             return;
         }
 
         this.isProcessing = true;
-        this.log(`/twentyone command processing started for ${userInfo}`);
+        this.log(`/claim command processing started for ${userInfo}`);
 
         try {
-            await interaction.deferReply({ flags: [64] }); // MessageFlags.Ephemeral
+            await interaction.deferReply({ ephemeral: true });
 
             const userId = interaction.user.id;
             const username = interaction.user.displayName || interaction.user.username;
@@ -201,6 +383,10 @@ class InviteBot {
             const csvData = await this.readCsvFile();
             this.log(`CSV data loaded: ${csvData.length} total records`);
             
+            // Calculate statistics for claim limits
+            const totalCodes = csvData.length;
+            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
+            
             // Check if user already exists in CSV
             const existingUserRow = csvData.find(row => row.userid === userId);
             
@@ -208,11 +394,29 @@ class InviteBot {
                 // User exists, send welcome back message
                 this.log(`Returning user detected: ${userInfo} has existing invite ${existingUserRow.invite}`);
                 await interaction.editReply({
-                    content: `Welcome back to the twentyone city @${username}\nYour invite code is: ${existingUserRow.invite}`
+                    content: messages.claim.returningUser(username, existingUserRow.invite)
                 });
-                this.log(`/twentyone completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
+                this.log(`/claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
             } else {
-                // User doesn't exist, find first available invite
+                // User doesn't exist, check if we can claim more codes
+                if (!this.claimLimits.canClaimMoreCodes(totalCodes, claimedCodes)) {
+                    // Limit reached
+                    this.log(`/claim failed: Claim limit reached (${claimedCodes}/${this.claimLimits.getClaimLimit()} max) for ${userInfo}`, 'WARN');
+                    
+                    // Create embedded message
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF9900)
+                        .setTitle('Invite Codes Unavailable')
+                        .setDescription(messages.claim.limitReached())
+                        .setTimestamp();
+                    
+                    await interaction.editReply({
+                        embeds: [embed]
+                    });
+                    return;
+                }
+                
+                // Find first available invite
                 const availableInviteRow = csvData.find(row => !row.userid || row.userid.trim() === '');
                 
                 if (availableInviteRow) {
@@ -227,28 +431,34 @@ class InviteBot {
                     this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
                     
                     await interaction.editReply({
-                        content: `Hey @${username} welcome to the twentyone city\nYour invite code is: ${assignedInvite}`
+                        content: messages.claim.newUser(username, assignedInvite)
                     });
                     
-                    this.log(`/twentyone completed: New invite ${assignedInvite} assigned to ${userInfo}`);
+                    this.log(`/claim completed: New invite ${assignedInvite} assigned to ${userInfo}`);
                 } else {
                     // No available invites
-                    const assignedCount = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
-                    this.log(`/twentyone failed: No available invites remaining (${assignedCount}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
+                    this.log(`/claim failed: No available invites remaining (${claimedCodes}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
+                    
+                    // Create embedded message
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF9900)
+                        .setTitle('Invite Codes Unavailable')
+                        .setDescription(messages.claim.noInvitesAvailable())
+                        .setTimestamp();
                     
                     await interaction.editReply({
-                        content: 'Sorry, no invite codes are currently available. Please contact an administrator.'
+                        embeds: [embed]
                     });
                 }
             }
         } catch (error) {
-            this.log(`/twentyone error for ${userInfo}: ${error.message}`, 'ERROR');
+            this.log(`/claim error for ${userInfo}: ${error.message}`, 'ERROR');
             await interaction.editReply({
-                content: 'An error occurred while processing your request. Please try again later.'
+                content: messages.claim.error()
             });
         } finally {
             this.isProcessing = false;
-            this.log(`/twentyone processing completed for ${userInfo}`);
+            this.log(`/claim processing completed for ${userInfo}`);
         }
     }
 
@@ -353,10 +563,10 @@ class InviteBot {
 
     async start() {
         try {
-            this.log('Starting Discord bot...');
-            await this.client.login(process.env.DISCORD_TOKEN);
+            this.log(messages.system.startingBot());
+            await this.client.login(config.bot.token);
         } catch (error) {
-            this.log(`Failed to login to Discord: ${error.message}`, 'ERROR');
+            this.log(messages.system.loginFailed(error), 'ERROR');
             process.exit(1);
         }
     }
@@ -368,13 +578,13 @@ bot.start();
 
 // Handle process termination
 process.on('SIGINT', () => {
-    bot.log('Received SIGINT - Shutting down bot...');
+    bot.log(messages.system.shuttingDown('SIGINT'));
     bot.client.destroy();
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-    bot.log('Received SIGTERM - Shutting down bot...');
+    bot.log(messages.system.shuttingDown('SIGTERM'));
     bot.client.destroy();
     process.exit(0);
 });

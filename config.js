@@ -18,7 +18,7 @@ const config = {
     
     // File paths
     paths: {
-        csvFile: path.join(__dirname, 'invites.csv'),
+        csvFile: path.join(__dirname, 'codes.csv'),
         whitelistFile: path.join(__dirname, 'whitelist.json'), // Store whitelisted roles
         botStateFile: path.join(__dirname, 'botstate.json') // Store runtime state including claim limits
     },

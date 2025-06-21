@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, AttachmentBuilder, EmbedBuilder, InteractionResponseFlags } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -371,7 +371,7 @@ class InviteBot {
             this.log(`/claim command blocked: ${userInfo} used command in restricted ${channelInfo}`, 'WARN');
             await interaction.reply({
                 content: messages.claim.channelRestricted(),
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
             return;
         }
@@ -381,7 +381,7 @@ class InviteBot {
             this.log(`/claim command denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
             await interaction.reply({
                 content: messages.claim.notEligible(),
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
             return;
         }
@@ -391,7 +391,7 @@ class InviteBot {
             this.log(`/claim command queued: ${userInfo} - system busy`);
             await interaction.reply({
                 content: messages.claim.processing(),
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
             return;
         }
@@ -400,7 +400,7 @@ class InviteBot {
         this.log(`/claim command processing started for ${userInfo}`);
 
         try {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
             const userId = interaction.user.id;
             const username = interaction.user.displayName || interaction.user.username;

@@ -12,8 +12,9 @@ const messages = {
             
         // Button clicked response
         buttonClicked: (username) => 
-            `Welcome to the journey, ${username}! \nYour adventure begins now...`,
-            
+            ``
+			,
+			
         // Error messages
         error: () => 
             `An error occurred while processing your journey request. Please try again later.`,
@@ -26,11 +27,11 @@ const messages = {
     claim: {
         // 1. When member uses /claim command, bot shows code and saves to CSV
         newUser: (username, inviteCode) => 
-            `Here's your code: \n**${inviteCode}**\n\n*don't forget to save it*`,
+            `Welcome to the journey, ${username}! \nYour adventure begins now...\n\nHere's your personal code: \n**${inviteCode}**\n\n*don't forget to save it*`,
             
         // 2. When member already has a code, welcome back message
         returningUser: (username, inviteCode) => 
-            `Welcome back to the twentyone city ${username}\nHere's your code: **${inviteCode}**\n\nDon't forget to save it`,
+            `Welcome back, ${username}\nIt looks like this is not your first time here\nForgot your code? Here it is: /n**${inviteCode}**`,
             
         // 3. User is not eligible
         notEligible: () => 

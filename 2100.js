@@ -79,7 +79,6 @@ class InviteBot {
                 if (interaction.commandName === config.commands.root.name) {
                     await this.handle2100Command(interaction);
                 }
-                // Removed /claim command handling
             } else if (interaction.isButton()) {
                 if (interaction.customId === 'bitcoin_city_journey') {
                     await this.handleJourneyButton(interaction);
@@ -149,7 +148,6 @@ class InviteBot {
             new SlashCommandBuilder()
                 .setName(config.commands.root.name)
                 .setDescription(config.commands.root.description)
-            // Removed /claim command registration
         ];
 
         const rest = new REST({ version: '10' }).setToken(config.bot.token);
@@ -185,9 +183,15 @@ class InviteBot {
             const row = new ActionRowBuilder()
                 .addComponents(button);
 
-            // Send ephemeral message with button
+            // Create embed for the journey message - no timestamp
+            const journeyEmbed = new EmbedBuilder()
+                .setColor(0xFFD700)  // Gold color
+                .setTitle('Bitcoin City 2100')
+                .setDescription(messages.bitcoin2100.journey());
+
+            // Send ephemeral message with embed and button
             await interaction.reply({
-                content: messages.bitcoin2100.journey(),
+                embeds: [journeyEmbed],
                 components: [row],
                 ephemeral: true
             });
@@ -195,8 +199,15 @@ class InviteBot {
             this.log(`/2100 command completed for ${userInfo} - ephemeral message with button sent`);
         } catch (error) {
             this.log(`/2100 error for ${userInfo}: ${error.message}`, 'ERROR');
+            
+            // Error embed - no timestamp
+            const errorEmbed = new EmbedBuilder()
+                .setColor(0xFF0000)  // Red color for error
+                .setTitle('Error')
+                .setDescription(messages.bitcoin2100.error());
+                
             await interaction.reply({
-                content: messages.bitcoin2100.error(),
+                embeds: [errorEmbed],
                 ephemeral: true
             });
         }
@@ -210,9 +221,15 @@ class InviteBot {
         try {
             const username = interaction.user.displayName || interaction.user.username;
             
+            // Create processing embed - no timestamp
+            const processingEmbed = new EmbedBuilder()
+                .setColor(0x3498DB)  // Blue color
+                .setTitle('Processing')
+                .setDescription(messages.bitcoin2100.buttonClicked(username));
+            
             // First, update the original message to acknowledge button click
             await interaction.update({
-                content: messages.bitcoin2100.buttonClicked(username),
+                embeds: [processingEmbed],
                 components: [] // Remove the button after clicking
             });
 
@@ -222,14 +239,21 @@ class InviteBot {
             await this.processClaimInSameMessage(interaction);
         } catch (error) {
             this.log(`Journey button error for ${userInfo}: ${error.message}`, 'ERROR');
+            
+            // Error embed - no timestamp
+            const errorEmbed = new EmbedBuilder()
+                .setColor(0xFF0000)  // Red color
+                .setTitle('Error')
+                .setDescription(messages.bitcoin2100.error());
+                
             await interaction.followUp({
-                content: messages.bitcoin2100.error(),
+                embeds: [errorEmbed],
                 ephemeral: true
             });
         }
     }
 
-    // New method to process claims within the same message
+    // Process claims within the same message
     async processClaimInSameMessage(interaction) {
         const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
         const channelInfo = `channel ${interaction.channelId}`;
@@ -239,8 +263,16 @@ class InviteBot {
         // Check if command is used in the correct channel(s)
         if (this.inviteChannelIds && !this.inviteChannelIds.includes(interaction.channelId)) {
             this.log(`Claim processing blocked: ${userInfo} used in restricted ${channelInfo}`, 'WARN');
+            
+            // Channel restriction embed - no timestamp
+            const restrictionEmbed = new EmbedBuilder()
+                .setColor(0xFF9900)  // Orange/amber for warning
+                .setTitle('Channel Restricted')
+                .setDescription(messages.claim.channelRestricted());
+                
             await interaction.editReply({
-                content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.channelRestricted()}`
+                embeds: [restrictionEmbed],
+                components: []
             });
             return;
         }
@@ -248,8 +280,19 @@ class InviteBot {
         // Check if user can claim code (admin or whitelisted role)
         if (!this.whitelist.memberCanClaimCode(interaction.member)) {
             this.log(`Claim processing denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
+            
+            // Not eligible embed - no timestamp
+            // Create custom message with hyperlink
+            const notEligibleMessage = "Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.\n\nMeanwhile, keep your eyes on [#Botanix2100 on Twitter](https://x.com/search?q=%23Botanix2100%20%40BotanixLabs&src=typed_query&f=top) — the door opens there";
+            
+            const notEligibleEmbed = new EmbedBuilder()
+                .setColor(0xFF9900)  // Orange/amber for warning
+                .setTitle('Not Eligible')
+                .setDescription(notEligibleMessage);
+                
             await interaction.editReply({
-                content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.notEligible()}`
+                embeds: [notEligibleEmbed],
+                components: []
             });
             return;
         }
@@ -257,8 +300,16 @@ class InviteBot {
         // Check if another command is being processed
         if (this.isProcessing) {
             this.log(`Claim processing queued: ${userInfo} - system busy`);
+            
+            // Processing embed - no timestamp
+            const processingEmbed = new EmbedBuilder()
+                .setColor(0x3498DB)  // Blue color
+                .setTitle('Processing')
+                .setDescription(messages.claim.processing());
+                
             await interaction.editReply({
-                content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.processing()}`
+                embeds: [processingEmbed],
+                components: []
             });
             return;
         }
@@ -285,8 +336,16 @@ class InviteBot {
             if (existingUserRow) {
                 // User exists, update the original message
                 this.log(`Returning user detected: ${userInfo} has existing invite ${existingUserRow.invite}`);
+                
+                // Returning user embed - gold color with no timestamp
+                const returningUserEmbed = new EmbedBuilder()
+                    .setColor(0xFFD700)  // Gold color for returning users
+                    .setTitle('Welcome Back')
+                    .setDescription(messages.claim.returningUser(username, existingUserRow.invite));
+                    
                 await interaction.editReply({
-                    content: `${messages.bitcoin2100.buttonClicked(username)}\n\n${messages.claim.returningUser(username, existingUserRow.invite)}`
+                    embeds: [returningUserEmbed],
+                    components: []
                 });
                 this.log(`Claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
             } else {
@@ -295,16 +354,17 @@ class InviteBot {
                     // Limit reached
                     this.log(`Claim failed: Claim limit reached (${claimedCodes}/${this.botState.getClaimLimit()} max) for ${userInfo}`, 'WARN');
                     
-                    // Create embedded message
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFF9900)
+                    // Create embedded message for limit reached with hyperlink - no timestamp
+                    const noCodesMessage = "There are no codes currently available, please wait for announcements or check later\n\nMeanwhile, keep your eyes on [#Botanix2100 on Twitter](https://x.com/search?q=%23Botanix2100%20%40BotanixLabs&src=typed_query&f=top) — the door opens there";
+                    
+                    const limitReachedEmbed = new EmbedBuilder()
+                        .setColor(0xFF9900)  // Orange/amber for warning
                         .setTitle('Invite Codes Unavailable')
-                        .setDescription(messages.claim.limitReached())
-                        .setTimestamp();
+                        .setDescription(noCodesMessage);
                     
                     await interaction.editReply({
-                        content: messages.bitcoin2100.buttonClicked(username),
-                        embeds: [embed]
+                        embeds: [limitReachedEmbed],
+                        components: []
                     });
                     return;
                 }
@@ -327,178 +387,51 @@ class InviteBot {
                     
                     this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
                     
+                    // New user embed - gold color with no timestamp
+                    const newUserEmbed = new EmbedBuilder()
+                        .setColor(0xFFD700)  // Gold color for new users
+                        .setTitle('Welcome to the Journey')
+                        .setDescription(messages.claim.newUser(username, assignedInvite));
+                        
                     await interaction.editReply({
-                        content: `${messages.bitcoin2100.buttonClicked(username)}\n\n${messages.claim.newUser(username, assignedInvite)}`
+                        embeds: [newUserEmbed],
+                        components: []
                     });
                     
                     this.log(`Claim completed: New invite ${assignedInvite} assigned to ${userInfo}`);
                 } else {
-                    // No available invites
+                    // No available invites with hyperlink - no timestamp
                     this.log(`Claim failed: No available invites remaining (${claimedCodes}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
                     
-                    // Create embedded message
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFF9900)
+                    // Create embedded message for no invites with hyperlink
+                    const noInvitesMessage = "There are no codes currently available, please wait for announcements or check later\n\nMeanwhile, keep your eyes on [#Botanix2100 on Twitter](https://x.com/search?q=%23Botanix2100%20%40BotanixLabs&src=typed_query&f=top) — the door opens there";
+                    
+                    const noInvitesEmbed = new EmbedBuilder()
+                        .setColor(0xFF9900)  // Orange/amber for warning
                         .setTitle('Invite Codes Unavailable')
-                        .setDescription(messages.claim.noInvitesAvailable())
-                        .setTimestamp();
+                        .setDescription(noInvitesMessage);
                     
                     await interaction.editReply({
-                        content: messages.bitcoin2100.buttonClicked(username),
-                        embeds: [embed]
+                        embeds: [noInvitesEmbed],
+                        components: []
                     });
                 }
             }
         } catch (error) {
             this.log(`Claim error for ${userInfo}: ${error.message}`, 'ERROR');
             try {
+                // Error embed - no timestamp
+                const errorEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)  // Red color
+                    .setTitle('Error')
+                    .setDescription(messages.claim.error());
+                    
                 await interaction.editReply({
-                    content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.error()}`
+                    embeds: [errorEmbed],
+                    components: []
                 });
             } catch (editError) {
                 this.log(`Failed to edit reply: ${editError.message}`, 'ERROR');
-            }
-        } finally {
-            this.isProcessing = false;
-            this.log(`Claim processing completed for ${userInfo}`);
-        }
-    }
-    
-    // Keeping the original processClaim method for reference or potential future use
-    async processClaim(interaction) {
-        const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
-        const channelInfo = `channel ${interaction.channelId}`;
-        
-        this.log(`Claim processing initiated by button click from ${userInfo} in ${channelInfo}`);
-
-        // Check if command is used in the correct channel(s)
-        if (this.inviteChannelIds && !this.inviteChannelIds.includes(interaction.channelId)) {
-            this.log(`Claim processing blocked: ${userInfo} used in restricted ${channelInfo}`, 'WARN');
-            await interaction.followUp({
-                content: messages.claim.channelRestricted(),
-                ephemeral: true
-            });
-            return;
-        }
-        
-        // Check if user can claim code (admin or whitelisted role)
-        if (!this.whitelist.memberCanClaimCode(interaction.member)) {
-            this.log(`Claim processing denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
-            await interaction.followUp({
-                content: messages.claim.notEligible(),
-                ephemeral: true
-            });
-            return;
-        }
-
-        // Check if another command is being processed
-        if (this.isProcessing) {
-            this.log(`Claim processing queued: ${userInfo} - system busy`);
-            await interaction.followUp({
-                content: messages.claim.processing(),
-                ephemeral: true
-            });
-            return;
-        }
-
-        this.isProcessing = true;
-        this.log(`Claim processing started for ${userInfo}`);
-
-        try {
-            // Create a new followUp message instead of trying to edit the original
-            const userId = interaction.user.id;
-            const username = interaction.user.displayName || interaction.user.username;
-
-            // Read and parse CSV file
-            this.log(`Reading CSV file for ${userInfo}`);
-            const csvData = await this.readCsvFile();
-            this.log(`CSV data loaded: ${csvData.length} total records`);
-            
-            // Calculate statistics for claim limits
-            const totalCodes = csvData.length;
-            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
-            
-            // Check if user already exists in CSV
-            const existingUserRow = csvData.find(row => row.userid === userId);
-            
-            if (existingUserRow) {
-                // User exists, send welcome back message
-                this.log(`Returning user detected: ${userInfo} has existing invite ${existingUserRow.invite}`);
-                await interaction.followUp({
-                    content: messages.claim.returningUser(username, existingUserRow.invite),
-                    ephemeral: true
-                });
-                this.log(`Claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
-            } else {
-                // User doesn't exist, check if we can claim more codes
-                if (!this.botState.canClaimMoreCodes(totalCodes, claimedCodes)) {
-                    // Limit reached
-                    this.log(`Claim failed: Claim limit reached (${claimedCodes}/${this.botState.getClaimLimit()} max) for ${userInfo}`, 'WARN');
-                    
-                    // Create embedded message
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFF9900)
-                        .setTitle('Invite Codes Unavailable')
-                        .setDescription(messages.claim.limitReached())
-                        .setTimestamp();
-                    
-                    await interaction.followUp({
-                        embeds: [embed],
-                        ephemeral: true
-                    });
-                    return;
-                }
-                
-                // Find first available invite
-                const availableInviteRow = csvData.find(row => !row.userid || row.userid.trim() === '');
-                
-                if (availableInviteRow) {
-                    // Assign the invite to the user
-                    const assignedInvite = availableInviteRow.invite;
-                    availableInviteRow.userid = userId;
-                    
-                    this.log(`New user assignment: ${userInfo} assigned invite ${assignedInvite}`);
-                    
-                    // Update CSV file
-                    await this.writeCsvFile(csvData);
-                    
-                    // Update CSV last modified in bot state
-                    await this.botState.updateCsvModified();
-                    
-                    this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
-                    
-                    await interaction.followUp({
-                        content: messages.claim.newUser(username, assignedInvite),
-                        ephemeral: true
-                    });
-                    
-                    this.log(`Claim completed: New invite ${assignedInvite} assigned to ${userInfo}`);
-                } else {
-                    // No available invites
-                    this.log(`Claim failed: No available invites remaining (${claimedCodes}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
-                    
-                    // Create embedded message
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFF9900)
-                        .setTitle('Invite Codes Unavailable')
-                        .setDescription(messages.claim.noInvitesAvailable())
-                        .setTimestamp();
-                    
-                    await interaction.followUp({
-                        embeds: [embed],
-                        ephemeral: true
-                    });
-                }
-            }
-        } catch (error) {
-            this.log(`Claim error for ${userInfo}: ${error.message}`, 'ERROR');
-            try {
-                await interaction.followUp({
-                    content: messages.claim.error(),
-                    ephemeral: true
-                });
-            } catch (followupError) {
-                this.log(`Failed to send error followUp: ${followupError.message}`, 'ERROR');
             }
         } finally {
             this.isProcessing = false;
@@ -541,80 +474,79 @@ class InviteBot {
         }
     }
     
-async handleCheckCommand(message) {
-    const userInfo = `${message.author.tag} (${message.author.id})`;
-    this.log(`>wl check command initiated by ${userInfo} in channel ${message.channelId}`);
-    
-    try {
-        // Get CSV data to calculate statistics
-        const csvData = await this.readCsvFile();
-        const totalCodes = csvData.length;
-        const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
-        const claimLimit = this.botState.getClaimLimit();
-        const availableCodes = this.botState.getAvailableCodes(totalCodes, claimedCodes);
+    async handleCheckCommand(message) {
+        const userInfo = `${message.author.tag} (${message.author.id})`;
+        this.log(`>wl check command initiated by ${userInfo} in channel ${message.channelId}`);
         
-        // Get last update info
-        const lastUpdate = this.botState.getLastUpdateInfo();
-        
-        // Get whitelisted roles
-        const whitelistedRoleIds = this.whitelist.getAllRoles();
-        let roleText = "No roles are currently whitelisted";
-        
-        if (whitelistedRoleIds && whitelistedRoleIds.length > 0) {
-            // Get role names
-            const roleNames = [];
-            for (const roleId of whitelistedRoleIds) {
-                const role = message.guild.roles.cache.get(roleId);
-                if (role) {
-                    roleNames.push(role.name);
-                } else {
-                    roleNames.push(`Unknown Role (ID: ${roleId})`);
-                }
-            }
-            if (roleNames.length > 0) {
-                roleText = roleNames.map(name => `• ${name}`).join('\n');
-            }
-        }
-        
-        // Create an embedded message
-        const embed = new EmbedBuilder()
-            .setColor(0x0099FF)
-            .setTitle(messages.admin.whitelist.statsTitle())
-            .setDescription(messages.admin.whitelist.statsDescription(
-                totalCodes, 
-                claimedCodes, 
-                claimLimit,
-                availableCodes
-            ));
-            
-        // Add fields with error checking
         try {
-            embed.addFields(
-                { 
-                    name: 'Whitelisted Roles', 
-                    value: `${roleText}`, 
-                    inline: false 
+            // Get CSV data to calculate statistics
+            const csvData = await this.readCsvFile();
+            const totalCodes = csvData.length;
+            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
+            const claimLimit = this.botState.getClaimLimit();
+            const availableCodes = this.botState.getAvailableCodes(totalCodes, claimedCodes);
+            
+            // Get last update info
+            const lastUpdate = this.botState.getLastUpdateInfo();
+            
+            // Get whitelisted roles
+            const whitelistedRoleIds = this.whitelist.getAllRoles();
+            let roleText = "No roles are currently whitelisted";
+            
+            if (whitelistedRoleIds && whitelistedRoleIds.length > 0) {
+                // Get role names
+                const roleNames = [];
+                for (const roleId of whitelistedRoleIds) {
+                    const role = message.guild.roles.cache.get(roleId);
+                    if (role) {
+                        roleNames.push(role.name);
+                    } else {
+                        roleNames.push(`Unknown Role (ID: ${roleId})`);
+                    }
                 }
-            );
-        } catch (fieldError) {
-            this.log(`Error adding fields to embed: ${fieldError.message}`, 'WARN');
-            // Add a simpler field if there's an error
-            embed.addFields(
-                { name: 'Status', value: 'Error formatting role information. Please check the server logs.', inline: false }
-            );
+                if (roleNames.length > 0) {
+                    roleText = roleNames.map(name => `• ${name}`).join('\n');
+                }
+            }
+            
+            // Create an embedded message - no timestamp as requested
+            const embed = new EmbedBuilder()
+                .setColor(0x0099FF)
+                .setTitle(messages.admin.whitelist.statsTitle())
+                .setDescription(messages.admin.whitelist.statsDescription(
+                    totalCodes, 
+                    claimedCodes, 
+                    claimLimit,
+                    availableCodes
+                ));
+                
+            // Add fields with error checking
+            try {
+                embed.addFields(
+                    { 
+                        name: 'Whitelisted Roles', 
+                        value: `${roleText}`, 
+                        inline: false 
+                    }
+                );
+            } catch (fieldError) {
+                this.log(`Error adding fields to embed: ${fieldError.message}`, 'WARN');
+                // Add a simpler field if there's an error
+                embed.addFields(
+                    { name: 'Status', value: 'Error formatting role information. Please check the server logs.', inline: false }
+                );
+            }
+            
+            embed.setFooter({ text: messages.admin.whitelist.statsFooter() });
+            
+            // Send the embed
+            await message.reply({ embeds: [embed] });
+            this.log(`Status check completed for ${userInfo}`);
+        } catch (error) {
+            this.log(`Status check error: ${error.message}`, 'ERROR');
+            await message.reply(messages.admin.whitelist.error());
         }
-        
-        embed.setTimestamp()
-            .setFooter({ text: messages.admin.whitelist.statsFooter() });
-        
-        // Send the embed
-        await message.reply({ embeds: [embed] });
-        this.log(`Status check completed for ${userInfo}`);
-    } catch (error) {
-        this.log(`Status check error: ${error.message}`, 'ERROR');
-        await message.reply(messages.admin.whitelist.error());
     }
-}
     
     async handleWhitelistCommand(message, args) {
         const userInfo = `${message.author.tag} (${message.author.id})`;

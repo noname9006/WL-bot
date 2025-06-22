@@ -26,11 +26,11 @@ const messages = {
     claim: {
         // 1. When member uses /claim command, bot shows code and saves to CSV
         newUser: (username, inviteCode) => 
-            `Welcome to the journey, **${username}**! 🚀\nYour adventure to begins now...\n\nHere's your personal code: \n\`\`\`${inviteCode}\`\`\`\n*don't forget to save it*`,
+            `Welcome to the journey, **${username}**! 🚀\nHere's your personal code: \n\`\`\`${inviteCode}\`\`\`\nBon voyage and don't forget to save your code!`,
             
         // 2. When member already has a code, welcome back message
         returningUser: (username, inviteCode) => 
-            `Welcome, **${username}**\nLooks like you’ve been here before\n\nLost your code? Here it is: \n\`\`\`${inviteCode}\`\`\``,
+            `Looks like you’ve been here before, **${username}**\n\nLost your code? Here it is: \n\`\`\`${inviteCode}\`\`\``,
             
         // 3. User is not eligible
         notEligible: () => 

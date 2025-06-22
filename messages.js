@@ -22,6 +22,36 @@ const messages = {
             `This command is not available in this channel.`
     },
 
+    // Messages for claim functionality (used by processClaimInSameMessage)
+    claim: {
+        // 1. When member uses /claim command, bot shows code and saves to CSV
+        newUser: (username, inviteCode) => 
+            `Hey ${username}, welcome to the twentyone city\nYour invite code is: ${inviteCode}`,
+            
+        // 2. When member already has a code, welcome back message
+        returningUser: (username, inviteCode) => 
+            `Welcome back to the twentyone city ${username}\nYour invite code is: ${inviteCode}`,
+            
+        // 3. User is not eligible
+        notEligible: () => 
+            `Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.`,
+            
+        // Error and system messages
+        channelRestricted: () => 
+            `Not available in this channel`,
+            
+        processing: () => 
+            `Please wait, another command is being processed...`,
+            
+        error: () => 
+            `An error occurred while processing your request. Please try again later.`,
+            
+        noInvitesAvailable: () => 
+            `There are no codes currently available, please wait for announcements or check later`,
+            
+        limitReached: () => 
+            `There are no codes currently available, please wait for announcements or check later`
+    },
     
     // Messages for admin commands
     admin: {
@@ -101,10 +131,10 @@ const messages = {
             `Received ${signal}, shutting down gracefully...`,
             
         channelRestrictionActive: (channelCount, channelList) => 
-            `Channel restriction active: Bot will only respond to /claim in ${channelCount} channel(s): ${channelList}`,
+            `Channel restriction active: Bot will only respond to commands in ${channelCount} channel(s): ${channelList}`,
             
         noChannelRestriction: () => 
-            `No channel restriction: Bot will respond to /claim in any channel`,
+            `No channel restriction: Bot will respond to commands in any channel`,
             
         slashCommandRegistrationStart: () => 
             `Registering slash commands...`,

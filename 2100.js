@@ -210,16 +210,16 @@ class InviteBot {
         try {
             const username = interaction.user.displayName || interaction.user.username;
             
-            // Update the original message to show the button was clicked
+            // First, update the original message to acknowledge button click
             await interaction.update({
                 content: messages.bitcoin2100.buttonClicked(username),
                 components: [] // Remove the button after clicking
             });
 
-            this.log(`Journey button interaction completed for ${userInfo}`);
+            this.log(`Journey button interaction acknowledged for ${userInfo}`);
             
-            // ADDED CODE: After button click, execute claim logic
-            await this.processClaim(interaction);
+            // Now proceed with claim logic in the same message context
+            await this.processClaimInSameMessage(interaction);
         } catch (error) {
             this.log(`Journey button error for ${userInfo}: ${error.message}`, 'ERROR');
             await interaction.followUp({
@@ -228,8 +228,143 @@ class InviteBot {
             });
         }
     }
+
+    // New method to process claims within the same message
+    async processClaimInSameMessage(interaction) {
+        const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
+        const channelInfo = `channel ${interaction.channelId}`;
+        
+        this.log(`Claim processing initiated in same message from ${userInfo} in ${channelInfo}`);
+
+        // Check if command is used in the correct channel(s)
+        if (this.inviteChannelIds && !this.inviteChannelIds.includes(interaction.channelId)) {
+            this.log(`Claim processing blocked: ${userInfo} used in restricted ${channelInfo}`, 'WARN');
+            await interaction.editReply({
+                content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.channelRestricted()}`
+            });
+            return;
+        }
+        
+        // Check if user can claim code (admin or whitelisted role)
+        if (!this.whitelist.memberCanClaimCode(interaction.member)) {
+            this.log(`Claim processing denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
+            await interaction.editReply({
+                content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.notEligible()}`
+            });
+            return;
+        }
+
+        // Check if another command is being processed
+        if (this.isProcessing) {
+            this.log(`Claim processing queued: ${userInfo} - system busy`);
+            await interaction.editReply({
+                content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.processing()}`
+            });
+            return;
+        }
+
+        this.isProcessing = true;
+        this.log(`Claim processing started for ${userInfo}`);
+
+        try {
+            const userId = interaction.user.id;
+            const username = interaction.user.displayName || interaction.user.username;
+
+            // Read and parse CSV file
+            this.log(`Reading CSV file for ${userInfo}`);
+            const csvData = await this.readCsvFile();
+            this.log(`CSV data loaded: ${csvData.length} total records`);
+            
+            // Calculate statistics for claim limits
+            const totalCodes = csvData.length;
+            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
+            
+            // Check if user already exists in CSV
+            const existingUserRow = csvData.find(row => row.userid === userId);
+            
+            if (existingUserRow) {
+                // User exists, update the original message
+                this.log(`Returning user detected: ${userInfo} has existing invite ${existingUserRow.invite}`);
+                await interaction.editReply({
+                    content: `${messages.bitcoin2100.buttonClicked(username)}\n\n${messages.claim.returningUser(username, existingUserRow.invite)}`
+                });
+                this.log(`Claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
+            } else {
+                // User doesn't exist, check if we can claim more codes
+                if (!this.botState.canClaimMoreCodes(totalCodes, claimedCodes)) {
+                    // Limit reached
+                    this.log(`Claim failed: Claim limit reached (${claimedCodes}/${this.botState.getClaimLimit()} max) for ${userInfo}`, 'WARN');
+                    
+                    // Create embedded message
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF9900)
+                        .setTitle('Invite Codes Unavailable')
+                        .setDescription(messages.claim.limitReached())
+                        .setTimestamp();
+                    
+                    await interaction.editReply({
+                        content: messages.bitcoin2100.buttonClicked(username),
+                        embeds: [embed]
+                    });
+                    return;
+                }
+                
+                // Find first available invite
+                const availableInviteRow = csvData.find(row => !row.userid || row.userid.trim() === '');
+                
+                if (availableInviteRow) {
+                    // Assign the invite to the user
+                    const assignedInvite = availableInviteRow.invite;
+                    availableInviteRow.userid = userId;
+                    
+                    this.log(`New user assignment: ${userInfo} assigned invite ${assignedInvite}`);
+                    
+                    // Update CSV file
+                    await this.writeCsvFile(csvData);
+                    
+                    // Update CSV last modified in bot state
+                    await this.botState.updateCsvModified();
+                    
+                    this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
+                    
+                    await interaction.editReply({
+                        content: `${messages.bitcoin2100.buttonClicked(username)}\n\n${messages.claim.newUser(username, assignedInvite)}`
+                    });
+                    
+                    this.log(`Claim completed: New invite ${assignedInvite} assigned to ${userInfo}`);
+                } else {
+                    // No available invites
+                    this.log(`Claim failed: No available invites remaining (${claimedCodes}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
+                    
+                    // Create embedded message
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF9900)
+                        .setTitle('Invite Codes Unavailable')
+                        .setDescription(messages.claim.noInvitesAvailable())
+                        .setTimestamp();
+                    
+                    await interaction.editReply({
+                        content: messages.bitcoin2100.buttonClicked(username),
+                        embeds: [embed]
+                    });
+                }
+            }
+        } catch (error) {
+            this.log(`Claim error for ${userInfo}: ${error.message}`, 'ERROR');
+            try {
+                await interaction.editReply({
+                    content: `${messages.bitcoin2100.buttonClicked(interaction.user.displayName || interaction.user.username)}\n\n${messages.claim.error()}`
+                });
+            } catch (editError) {
+                this.log(`Failed to edit reply: ${editError.message}`, 'ERROR');
+            }
+        } finally {
+            this.isProcessing = false;
+            this.log(`Claim processing completed for ${userInfo}`);
+        }
+    }
     
-    // NEW METHOD: Process claim logic (moved from handleClaimCommand)
+    // Keeping the original processClaim method for reference or potential future use
     async processClaim(interaction) {
         const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
         const channelInfo = `channel ${interaction.channelId}`;
@@ -452,8 +587,7 @@ class InviteBot {
                     availableCodes
                 ))
                 .addFields(
-                    { name: 'Last Updated', value: `${lastUpdate.date} by ${lastUpdate.user}`, inline: false },
-                    { name: 'Whitelisted Roles', value: `${roleText}\n\n*Note: Server administrators always have access regardless of whitelist.*`, inline: false }
+                    { name: 'Whitelisted Roles', inline: false }
                 )
                 .setTimestamp()
                 .setFooter({ text: messages.admin.whitelist.statsFooter() });

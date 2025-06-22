@@ -8,13 +8,12 @@ const messages = {
     bitcoin2100: {
         // Ephemeral message when user uses /2100 command
         journey: () => 
-            `They say you're looking for the road to Bitcoin City 2100…\nAre you ready for the next step?`,
+            `They say you're looking for the road to Bitcoin City…\nAre you ready for the next step?`,
             
-        // Button clicked response
+        // Button clicked response - basic acknowledgment
         buttonClicked: (username) => 
-            ``
-			,
-			
+            `Processing your request...`,
+            
         // Error messages
         error: () => 
             `An error occurred while processing your journey request. Please try again later.`,
@@ -27,19 +26,19 @@ const messages = {
     claim: {
         // 1. When member uses /claim command, bot shows code and saves to CSV
         newUser: (username, inviteCode) => 
-            `Welcome to the journey, ${username}! \nYour adventure begins now...\n\nHere's your personal code: \n**${inviteCode}**\n\n*don't forget to save it*`,
+            `Welcome to the journey, **${username}**! 🚀\nYour adventure to begins now...\n\nHere's your personal code: \n\`\`\`${inviteCode}\`\`\`\n*don't forget to save it*`,
             
         // 2. When member already has a code, welcome back message
         returningUser: (username, inviteCode) => 
-            `Welcome back, ${username}\nIt looks like this is not your first time here\nForgot your code? Here it is: /n**${inviteCode}**`,
+            `Welcome, **${username}**\nLooks like you’ve been here before\n\nLost your code? Here it is: \n\`\`\`${inviteCode}\`\`\``,
             
         // 3. User is not eligible
         notEligible: () => 
-            `Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.`,
+            `Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.\n\nMeanwрile, keep your eyes on #Botanix2100 on Twitter — the door opens there`,
             
         // Error and system messages
         channelRestricted: () => 
-            `Not available in this channel`,
+            `**Not available** in this channel`,
             
         processing: () => 
             `Please wait, another command is being processed...`,
@@ -48,10 +47,10 @@ const messages = {
             `An error occurred while processing your request. Please try again later.`,
             
         noInvitesAvailable: () => 
-            `There are no codes currently available, please wait for announcements or check later`,
+            `There are no codes currently available, please wait for announcements or check later\n\nMeanwрile, keep your eyes on #Botanix2100 on Twitter — the door opens there`,
             
         limitReached: () => 
-            `There are no codes currently available, please wait for announcements or check later`
+            `There are no codes currently available, please wait for announcements or check later\n\nMeanwрile, keep your eyes on #Botanix2100 on Twitter — the door opens there`
     },
     
     // Messages for admin commands

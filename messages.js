@@ -12,7 +12,7 @@ const messages = {
             
         // Button clicked response
         buttonClicked: (username) => 
-            `Welcome to the journey, @${username}! 🚀\nYour adventure to Bitcoin City 2100 begins now...`,
+            `Welcome to the journey, ${username}! \nYour adventure begins now...`,
             
         // Error messages
         error: () => 
@@ -22,36 +22,6 @@ const messages = {
             `This command is not available in this channel.`
     },
 
-    // Messages for /claim command
-    claim: {
-        // 1. When member uses /claim command, bot shows code and saves to CSV
-        newUser: (username, inviteCode) => 
-            `Hey @${username} welcome to the twentyone city\nYour invite code is: ${inviteCode}`,
-            
-        // 2. When member already has a code, welcome back message
-        returningUser: (username, inviteCode) => 
-            `Welcome back to the twentyone city @${username}\nYour invite code is: ${inviteCode}`,
-            
-        // 3. User is not eligible
-        notEligible: () => 
-            `Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.`,
-            
-        // Error and system messages
-        channelRestricted: () => 
-            `Not available in this channel`,
-            
-        processing: () => 
-            `Please wait, another command is being processed...`,
-            
-        error: () => 
-            `An error occurred while processing your request. Please try again later.`,
-            
-        noInvitesAvailable: () => 
-            `There are no codes currently available, please wait for announcements or check later`,
-            
-        limitReached: () => 
-            `There are no codes currently available, please wait for announcements or check later`
-    },
     
     // Messages for admin commands
     admin: {

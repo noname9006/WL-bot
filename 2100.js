@@ -78,9 +78,8 @@ class InviteBot {
             if (interaction.isChatInputCommand()) {
                 if (interaction.commandName === config.commands.root.name) {
                     await this.handle2100Command(interaction);
-                } else if (interaction.commandName === config.commands.claim.name) {
-                    await this.handleClaimCommand(interaction);
                 }
+                // Removed /claim command handling
             } else if (interaction.isButton()) {
                 if (interaction.customId === 'bitcoin_city_journey') {
                     await this.handleJourneyButton(interaction);
@@ -149,10 +148,8 @@ class InviteBot {
         const commands = [
             new SlashCommandBuilder()
                 .setName(config.commands.root.name)
-                .setDescription(config.commands.root.description),
-            new SlashCommandBuilder()
-                .setName(config.commands.claim.name)
-                .setDescription(config.commands.claim.description)
+                .setDescription(config.commands.root.description)
+            // Removed /claim command registration
         ];
 
         const rest = new REST({ version: '10' }).setToken(config.bot.token);
@@ -220,12 +217,157 @@ class InviteBot {
             });
 
             this.log(`Journey button interaction completed for ${userInfo}`);
+            
+            // ADDED CODE: After button click, execute claim logic
+            await this.processClaim(interaction);
         } catch (error) {
             this.log(`Journey button error for ${userInfo}: ${error.message}`, 'ERROR');
-            await interaction.reply({
+            await interaction.followUp({
                 content: messages.bitcoin2100.error(),
                 ephemeral: true
             });
+        }
+    }
+    
+    // NEW METHOD: Process claim logic (moved from handleClaimCommand)
+    async processClaim(interaction) {
+        const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
+        const channelInfo = `channel ${interaction.channelId}`;
+        
+        this.log(`Claim processing initiated by button click from ${userInfo} in ${channelInfo}`);
+
+        // Check if command is used in the correct channel(s)
+        if (this.inviteChannelIds && !this.inviteChannelIds.includes(interaction.channelId)) {
+            this.log(`Claim processing blocked: ${userInfo} used in restricted ${channelInfo}`, 'WARN');
+            await interaction.followUp({
+                content: messages.claim.channelRestricted(),
+                ephemeral: true
+            });
+            return;
+        }
+        
+        // Check if user can claim code (admin or whitelisted role)
+        if (!this.whitelist.memberCanClaimCode(interaction.member)) {
+            this.log(`Claim processing denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
+            await interaction.followUp({
+                content: messages.claim.notEligible(),
+                ephemeral: true
+            });
+            return;
+        }
+
+        // Check if another command is being processed
+        if (this.isProcessing) {
+            this.log(`Claim processing queued: ${userInfo} - system busy`);
+            await interaction.followUp({
+                content: messages.claim.processing(),
+                ephemeral: true
+            });
+            return;
+        }
+
+        this.isProcessing = true;
+        this.log(`Claim processing started for ${userInfo}`);
+
+        try {
+            // Create a new followUp message instead of trying to edit the original
+            const userId = interaction.user.id;
+            const username = interaction.user.displayName || interaction.user.username;
+
+            // Read and parse CSV file
+            this.log(`Reading CSV file for ${userInfo}`);
+            const csvData = await this.readCsvFile();
+            this.log(`CSV data loaded: ${csvData.length} total records`);
+            
+            // Calculate statistics for claim limits
+            const totalCodes = csvData.length;
+            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
+            
+            // Check if user already exists in CSV
+            const existingUserRow = csvData.find(row => row.userid === userId);
+            
+            if (existingUserRow) {
+                // User exists, send welcome back message
+                this.log(`Returning user detected: ${userInfo} has existing invite ${existingUserRow.invite}`);
+                await interaction.followUp({
+                    content: messages.claim.returningUser(username, existingUserRow.invite),
+                    ephemeral: true
+                });
+                this.log(`Claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
+            } else {
+                // User doesn't exist, check if we can claim more codes
+                if (!this.botState.canClaimMoreCodes(totalCodes, claimedCodes)) {
+                    // Limit reached
+                    this.log(`Claim failed: Claim limit reached (${claimedCodes}/${this.botState.getClaimLimit()} max) for ${userInfo}`, 'WARN');
+                    
+                    // Create embedded message
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF9900)
+                        .setTitle('Invite Codes Unavailable')
+                        .setDescription(messages.claim.limitReached())
+                        .setTimestamp();
+                    
+                    await interaction.followUp({
+                        embeds: [embed],
+                        ephemeral: true
+                    });
+                    return;
+                }
+                
+                // Find first available invite
+                const availableInviteRow = csvData.find(row => !row.userid || row.userid.trim() === '');
+                
+                if (availableInviteRow) {
+                    // Assign the invite to the user
+                    const assignedInvite = availableInviteRow.invite;
+                    availableInviteRow.userid = userId;
+                    
+                    this.log(`New user assignment: ${userInfo} assigned invite ${assignedInvite}`);
+                    
+                    // Update CSV file
+                    await this.writeCsvFile(csvData);
+                    
+                    // Update CSV last modified in bot state
+                    await this.botState.updateCsvModified();
+                    
+                    this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
+                    
+                    await interaction.followUp({
+                        content: messages.claim.newUser(username, assignedInvite),
+                        ephemeral: true
+                    });
+                    
+                    this.log(`Claim completed: New invite ${assignedInvite} assigned to ${userInfo}`);
+                } else {
+                    // No available invites
+                    this.log(`Claim failed: No available invites remaining (${claimedCodes}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
+                    
+                    // Create embedded message
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF9900)
+                        .setTitle('Invite Codes Unavailable')
+                        .setDescription(messages.claim.noInvitesAvailable())
+                        .setTimestamp();
+                    
+                    await interaction.followUp({
+                        embeds: [embed],
+                        ephemeral: true
+                    });
+                }
+            }
+        } catch (error) {
+            this.log(`Claim error for ${userInfo}: ${error.message}`, 'ERROR');
+            try {
+                await interaction.followUp({
+                    content: messages.claim.error(),
+                    ephemeral: true
+                });
+            } catch (followupError) {
+                this.log(`Failed to send error followUp: ${followupError.message}`, 'ERROR');
+            }
+        } finally {
+            this.isProcessing = false;
+            this.log(`Claim processing completed for ${userInfo}`);
         }
     }
     
@@ -439,139 +581,6 @@ class InviteBot {
         } catch (error) {
             this.log(`CSV export error for ${userInfo}: ${error.message}`, 'ERROR');
             await message.reply(messages.admin.export.error());
-        }
-    }
-
-    async handleClaimCommand(interaction) {
-        const userInfo = `${interaction.user.displayName || interaction.user.username} (${interaction.user.id})`;
-        const channelInfo = `channel ${interaction.channelId}`;
-        
-        this.log(`/claim command initiated by ${userInfo} in ${channelInfo}`);
-
-        // Check if command is used in the correct channel(s)
-        if (this.inviteChannelIds && !this.inviteChannelIds.includes(interaction.channelId)) {
-            this.log(`/claim command blocked: ${userInfo} used command in restricted ${channelInfo}`, 'WARN');
-            await interaction.reply({
-                content: messages.claim.channelRestricted(),
-                ephemeral: true
-            });
-            return;
-        }
-        
-        // Check if user can claim code (admin or whitelisted role)
-        if (!this.whitelist.memberCanClaimCode(interaction.member)) {
-            this.log(`/claim command denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
-            await interaction.reply({
-                content: messages.claim.notEligible(),
-                ephemeral: true
-            });
-            return;
-        }
-
-        // Check if another command is being processed
-        if (this.isProcessing) {
-            this.log(`/claim command queued: ${userInfo} - system busy`);
-            await interaction.reply({
-                content: messages.claim.processing(),
-                ephemeral: true
-            });
-            return;
-        }
-
-        this.isProcessing = true;
-        this.log(`/claim command processing started for ${userInfo}`);
-
-        try {
-            await interaction.deferReply({ ephemeral: true });
-
-            const userId = interaction.user.id;
-            const username = interaction.user.displayName || interaction.user.username;
-
-            // Read and parse CSV file
-            this.log(`Reading CSV file for ${userInfo}`);
-            const csvData = await this.readCsvFile();
-            this.log(`CSV data loaded: ${csvData.length} total records`);
-            
-            // Calculate statistics for claim limits
-            const totalCodes = csvData.length;
-            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
-            
-            // Check if user already exists in CSV
-            const existingUserRow = csvData.find(row => row.userid === userId);
-            
-            if (existingUserRow) {
-                // User exists, send welcome back message
-                this.log(`Returning user detected: ${userInfo} has existing invite ${existingUserRow.invite}`);
-                await interaction.editReply({
-                    content: messages.claim.returningUser(username, existingUserRow.invite)
-                });
-                this.log(`/claim completed: Existing invite ${existingUserRow.invite} provided to ${userInfo}`);
-            } else {
-                // User doesn't exist, check if we can claim more codes
-                if (!this.botState.canClaimMoreCodes(totalCodes, claimedCodes)) {
-                    // Limit reached
-                    this.log(`/claim failed: Claim limit reached (${claimedCodes}/${this.botState.getClaimLimit()} max) for ${userInfo}`, 'WARN');
-                    
-                    // Create embedded message
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFF9900)
-                        .setTitle('Invite Codes Unavailable')
-                        .setDescription(messages.claim.limitReached())
-                        .setTimestamp();
-                    
-                    await interaction.editReply({
-                        embeds: [embed]
-                    });
-                    return;
-                }
-                
-                // Find first available invite
-                const availableInviteRow = csvData.find(row => !row.userid || row.userid.trim() === '');
-                
-                if (availableInviteRow) {
-                    // Assign the invite to the user
-                    const assignedInvite = availableInviteRow.invite;
-                    availableInviteRow.userid = userId;
-                    
-                    this.log(`New user assignment: ${userInfo} assigned invite ${assignedInvite}`);
-                    
-                    // Update CSV file
-                    await this.writeCsvFile(csvData);
-                    
-                    // Update CSV last modified in bot state
-                    await this.botState.updateCsvModified();
-                    
-                    this.log(`CSV file updated: User ${userId} linked to invite ${assignedInvite}`);
-                    
-                    await interaction.editReply({
-                        content: messages.claim.newUser(username, assignedInvite)
-                    });
-                    
-                    this.log(`/claim completed: New invite ${assignedInvite} assigned to ${userInfo}`);
-                } else {
-                    // No available invites
-                    this.log(`/claim failed: No available invites remaining (${claimedCodes}/${csvData.length} assigned) for ${userInfo}`, 'WARN');
-                    
-                    // Create embedded message
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFF9900)
-                        .setTitle('Invite Codes Unavailable')
-                        .setDescription(messages.claim.noInvitesAvailable())
-                        .setTimestamp();
-                    
-                    await interaction.editReply({
-                        embeds: [embed]
-                    });
-                }
-            }
-        } catch (error) {
-            this.log(`/claim error for ${userInfo}: ${error.message}`, 'ERROR');
-            await interaction.editReply({
-                content: messages.claim.error()
-            });
-        } finally {
-            this.isProcessing = false;
-            this.log(`/claim processing completed for ${userInfo}`);
         }
     }
 

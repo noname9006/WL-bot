@@ -36,10 +36,6 @@ const config = {
             name: '2100',
             description: 'Start your Bitcoin City 2100 journey'
         },
-        claim: {
-            name: 'claim',
-            description: 'Get your invite code'
-        },
         
         admin: {
             // Admin commands with > prefix

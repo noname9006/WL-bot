@@ -1,4 +1,7 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, AttachmentBuilder, EmbedBuilder, InteractionResponseFlags } = require('discord.js');
+// Silence the deprecation warning about ephemeral messages
+process.env.NODE_NO_WARNINGS = '1';
+
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -371,7 +374,7 @@ class InviteBot {
             this.log(`/claim command blocked: ${userInfo} used command in restricted ${channelInfo}`, 'WARN');
             await interaction.reply({
                 content: messages.claim.channelRestricted(),
-                flags: [InteractionResponseFlags.Ephemeral]
+                ephemeral: true
             });
             return;
         }
@@ -381,7 +384,7 @@ class InviteBot {
             this.log(`/claim command denied: ${userInfo} doesn't have permission to claim codes`, 'WARN');
             await interaction.reply({
                 content: messages.claim.notEligible(),
-                flags: [InteractionResponseFlags.Ephemeral]
+                ephemeral: true
             });
             return;
         }
@@ -391,7 +394,7 @@ class InviteBot {
             this.log(`/claim command queued: ${userInfo} - system busy`);
             await interaction.reply({
                 content: messages.claim.processing(),
-                flags: [InteractionResponseFlags.Ephemeral]
+                ephemeral: true
             });
             return;
         }
@@ -400,7 +403,7 @@ class InviteBot {
         this.log(`/claim command processing started for ${userInfo}`);
 
         try {
-            await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+            await interaction.deferReply({ ephemeral: true });
 
             const userId = interaction.user.id;
             const username = interaction.user.displayName || interaction.user.username;
@@ -594,6 +597,10 @@ class InviteBot {
 
     async start() {
         try {
+            // Log Discord.js version
+            const { version } = require('discord.js');
+            this.log(`Using Discord.js version: ${version}`);
+            
             this.log(messages.system.startingBot());
             await this.client.login(config.bot.token);
         } catch (error) {

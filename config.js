@@ -31,6 +31,11 @@ const config = {
     
     // Commands configuration
     commands: {
+        // Root "/2100" command
+        root: {
+            name: '2100',
+            description: 'Start your Bitcoin City 2100 journey'
+        },
         claim: {
             name: 'claim',
             description: 'Get your invite code'
@@ -63,7 +68,7 @@ const config = {
     
     // System settings
     system: {
-        currentDate: '2025-06-21 17:30:33', // Current UTC date for reference
+        currentDate: '2025-06-22 11:51:58', // Current UTC date for reference
         currentUser: 'noname9006',         // Current user's login
         dateTimeFormat: {
             log: {

@@ -4,9 +4,27 @@
  */
 
 const messages = {
+    // Messages for /2100 command (root "/" command)
+    bitcoin2100: {
+        // Ephemeral message when user uses /2100 command
+        journey: () => 
+            `They say you're looking for the road to Bitcoin City 2100…\nAre you ready for the next step?`,
+            
+        // Button clicked response
+        buttonClicked: (username) => 
+            `Welcome to the journey, @${username}! 🚀\nYour adventure to Bitcoin City 2100 begins now...`,
+            
+        // Error messages
+        error: () => 
+            `An error occurred while processing your journey request. Please try again later.`,
+            
+        channelRestricted: () => 
+            `This command is not available in this channel.`
+    },
+
     // Messages for /claim command
     claim: {
-        // 1. When member uses / command, bot shows code and saves to CSV
+        // 1. When member uses /claim command, bot shows code and saves to CSV
         newUser: (username, inviteCode) => 
             `Hey @${username} welcome to the twentyone city\nYour invite code is: ${inviteCode}`,
             
@@ -79,38 +97,47 @@ const messages = {
                 `❓ Invalid command. Use \`>WL @role\` to add a role or \`>WL rm @role\` to remove a role.`,
                 
             error: () => 
-                `⚠️ An error occurred while updating the whitelist.`,
-                
-            limitSet: (amount) => 
-                `✅ Claim limit increased by ${amount}. New codes are now available to claim.`,
+                `❌ An error occurred while processing the whitelist command. Please try again later.`,
                 
             limitError: () => 
-                `❓ Invalid limit format. Use \`>WL set +xxx\` where xxx is a number of codes to add.`,
+                `❓ Invalid limit format. Use \`>wl set +<number>\` to increase the claim limit (e.g., \`>wl set +100\`).`,
+                
+            limitSet: (amount) => 
+                `✅ Claim limit increased by **${amount}** codes.`,
                 
             statsTitle: () => 
-                `📊 Invite Codes Status`,
+                `📊 Bot Status & Statistics`,
                 
-            statsDescription: (total, claimed, limit, available) => 
-                `Total codes in database: **${total}**\nClaimed codes: **${claimed}**\nCurrent claim limit: **${limit}**\nCodes available to claim: **${available}**`,
-
+            statsDescription: (totalCodes, claimedCodes, claimLimit, availableCodes) => 
+                `**Total Codes:** ${totalCodes}\n**Claimed Codes:** ${claimedCodes}\n**Claim Limit:** ${claimLimit}\n**Available for Claiming:** ${availableCodes}`,
+                
             statsFooter: () => 
-                `Use >WL set +xxx to increase the claim limit`
+                `WL-bot Statistics`
         }
     },
     
-    // System messages for logging
+    // System messages
     system: {
-        startupComplete: (botTag) => 
-            `Bot logged in as ${botTag}! Administrators have default access to claim codes.`,
+        startingBot: () => 
+            `Starting WL-bot...`,
             
-        channelRestrictionActive: (count, channels) => 
-            `Channel restriction active: ${count} channel(s) - ${channels}`,
+        startupComplete: (botUsername) => 
+            `WL-bot started successfully as ${botUsername}`,
+            
+        loginFailed: (error) => 
+            `Failed to login to Discord: ${error.message}`,
+            
+        shuttingDown: (signal) => 
+            `Received ${signal}, shutting down gracefully...`,
+            
+        channelRestrictionActive: (channelCount, channelList) => 
+            `Channel restriction active: Bot will only respond to /claim in ${channelCount} channel(s): ${channelList}`,
             
         noChannelRestriction: () => 
-            `Channel restriction: Server-wide access enabled`,
+            `No channel restriction: Bot will respond to /claim in any channel`,
             
         slashCommandRegistrationStart: () => 
-            `Starting slash command registration...`,
+            `Registering slash commands...`,
             
         slashCommandRegistrationComplete: () => 
             `Slash commands registered successfully`,
@@ -118,32 +145,28 @@ const messages = {
         slashCommandRegistrationFailed: (error) => 
             `Failed to register slash commands: ${error.message}`,
             
-        startingBot: () => 
-            `Starting Discord bot...`,
-            
-        loginFailed: (error) => 
-            `Failed to login to Discord: ${error.message}`,
-            
-        shuttingDown: (signal) => 
-            `Received ${signal} - Shutting down bot...`,
-            
+        // Whitelist system messages
         whitelistLoaded: (count) => 
-            `Whitelist loaded: ${count} role(s) - Administrators always have access`,
+            `Whitelist loaded successfully: ${count} role(s) whitelisted`,
             
         whitelistSaved: (count) => 
-            `Whitelist saved: ${count} role(s)`,
+            `Whitelist saved successfully: ${count} role(s) whitelisted`,
             
         whitelistError: (error) => 
             `Whitelist error: ${error.message}`,
             
-        botStateLoaded: (limit) => 
-            `Bot state loaded: ${limit} codes claimable`,
+        // Bot state system messages
+        botStateLoaded: () => 
+            `Bot state loaded successfully`,
             
-        botStateSaved: (limit) => 
-            `Bot state saved: ${limit} codes claimable`,
+        botStateSaved: () => 
+            `Bot state saved successfully`,
             
         botStateError: (error) => 
-            `Bot state error: ${error.message}`
+            `Bot state error: ${error.message}`,
+            
+        botStateCreated: () => 
+            `Bot state file not found, created new default state`
     }
 };
 

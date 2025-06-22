@@ -26,11 +26,11 @@ const messages = {
     claim: {
         // 1. When member uses /claim command, bot shows code and saves to CSV
         newUser: (username, inviteCode) => 
-            `Hey ${username}, welcome to the twentyone city\nYour invite code is: ${inviteCode}`,
+            `Here's your code: \n**${inviteCode}**\n\n*don't forget to save it*`,
             
         // 2. When member already has a code, welcome back message
         returningUser: (username, inviteCode) => 
-            `Welcome back to the twentyone city ${username}\nYour invite code is: ${inviteCode}`,
+            `Welcome back to the twentyone city ${username}\nHere's your code: **${inviteCode}**\n\nDon't forget to save it`,
             
         // 3. User is not eligible
         notEligible: () => 
@@ -91,7 +91,7 @@ const messages = {
                 `ℹ️ The whitelist is currently empty. Note: Server administrators always have access regardless of whitelist.`,
                 
             listRoles: (roles) => 
-                `📋 **Whitelisted Roles**:\n${roles.map(r => `- ${r}`).join('\n')}\n\nNote: Server administrators always have access regardless of whitelist.`,
+                `📋 **Whitelisted Roles**:\n${roles.map(r => `- ${r}`).join('\n')}`,
                 
             invalidCommand: () => 
                 `❓ Invalid command. Use \`>WL @role\` to add a role or \`>WL rm @role\` to remove a role.`,

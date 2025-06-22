@@ -541,65 +541,80 @@ class InviteBot {
         }
     }
     
-    async handleCheckCommand(message) {
-        const userInfo = `${message.author.tag} (${message.author.id})`;
-        this.log(`>wl check command initiated by ${userInfo} in channel ${message.channelId}`);
+async handleCheckCommand(message) {
+    const userInfo = `${message.author.tag} (${message.author.id})`;
+    this.log(`>wl check command initiated by ${userInfo} in channel ${message.channelId}`);
+    
+    try {
+        // Get CSV data to calculate statistics
+        const csvData = await this.readCsvFile();
+        const totalCodes = csvData.length;
+        const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
+        const claimLimit = this.botState.getClaimLimit();
+        const availableCodes = this.botState.getAvailableCodes(totalCodes, claimedCodes);
         
-        try {
-            // Get CSV data to calculate statistics
-            const csvData = await this.readCsvFile();
-            const totalCodes = csvData.length;
-            const claimedCodes = csvData.filter(row => row.userid && row.userid.trim() !== '').length;
-            const claimLimit = this.botState.getClaimLimit();
-            const availableCodes = this.botState.getAvailableCodes(totalCodes, claimedCodes);
-            
-            // Get last update info
-            const lastUpdate = this.botState.getLastUpdateInfo();
-            
-            // Get whitelisted roles
-            const whitelistedRoleIds = this.whitelist.getAllRoles();
-            let roleText = "";
-            
-            if (whitelistedRoleIds.length === 0) {
-                roleText = "No roles are currently whitelisted";
-            } else {
-                // Get role names
-                const roleNames = [];
-                for (const roleId of whitelistedRoleIds) {
-                    const role = message.guild.roles.cache.get(roleId);
-                    if (role) {
-                        roleNames.push(role.name);
-                    } else {
-                        roleNames.push(`Unknown Role (ID: ${roleId})`);
-                    }
+        // Get last update info
+        const lastUpdate = this.botState.getLastUpdateInfo();
+        
+        // Get whitelisted roles
+        const whitelistedRoleIds = this.whitelist.getAllRoles();
+        let roleText = "No roles are currently whitelisted";
+        
+        if (whitelistedRoleIds && whitelistedRoleIds.length > 0) {
+            // Get role names
+            const roleNames = [];
+            for (const roleId of whitelistedRoleIds) {
+                const role = message.guild.roles.cache.get(roleId);
+                if (role) {
+                    roleNames.push(role.name);
+                } else {
+                    roleNames.push(`Unknown Role (ID: ${roleId})`);
                 }
+            }
+            if (roleNames.length > 0) {
                 roleText = roleNames.map(name => `• ${name}`).join('\n');
             }
-            
-            // Create an embedded message
-            const embed = new EmbedBuilder()
-                .setColor(0x0099FF)
-                .setTitle(messages.admin.whitelist.statsTitle())
-                .setDescription(messages.admin.whitelist.statsDescription(
-                    totalCodes, 
-                    claimedCodes, 
-                    claimLimit,
-                    availableCodes
-                ))
-                .addFields(
-                    { name: 'Whitelisted Roles', inline: false }
-                )
-                .setTimestamp()
-                .setFooter({ text: messages.admin.whitelist.statsFooter() });
-            
-            // Send the embed
-            await message.reply({ embeds: [embed] });
-            this.log(`Status check completed for ${userInfo}`);
-        } catch (error) {
-            this.log(`Status check error: ${error.message}`, 'ERROR');
-            message.reply(messages.admin.whitelist.error());
         }
+        
+        // Create an embedded message
+        const embed = new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setTitle(messages.admin.whitelist.statsTitle())
+            .setDescription(messages.admin.whitelist.statsDescription(
+                totalCodes, 
+                claimedCodes, 
+                claimLimit,
+                availableCodes
+            ));
+            
+        // Add fields with error checking
+        try {
+            embed.addFields(
+                { 
+                    name: 'Whitelisted Roles', 
+                    value: `${roleText}`, 
+                    inline: false 
+                }
+            );
+        } catch (fieldError) {
+            this.log(`Error adding fields to embed: ${fieldError.message}`, 'WARN');
+            // Add a simpler field if there's an error
+            embed.addFields(
+                { name: 'Status', value: 'Error formatting role information. Please check the server logs.', inline: false }
+            );
+        }
+        
+        embed.setTimestamp()
+            .setFooter({ text: messages.admin.whitelist.statsFooter() });
+        
+        // Send the embed
+        await message.reply({ embeds: [embed] });
+        this.log(`Status check completed for ${userInfo}`);
+    } catch (error) {
+        this.log(`Status check error: ${error.message}`, 'ERROR');
+        await message.reply(messages.admin.whitelist.error());
     }
+}
     
     async handleWhitelistCommand(message, args) {
         const userInfo = `${message.author.tag} (${message.author.id})`;

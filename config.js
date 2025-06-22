@@ -64,8 +64,8 @@ const config = {
     
     // System settings
     system: {
-        currentDate: '2025-06-22 11:51:58', // Current UTC date for reference
-        currentUser: 'noname9006',         // Current user's login
+        currentDate: '2025-06-22 16:09:32', // Updated current UTC date
+        currentUser: 'noname9006go',        // Updated current user's login
         dateTimeFormat: {
             log: {
                 // Format: YYYY-MM-DD HH:MM:SS

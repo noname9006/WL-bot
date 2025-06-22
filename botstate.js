@@ -38,7 +38,7 @@ class BotState {
                         csvLastModified: loadedState.csvLastModified || config.system.currentDate
                     };
                     
-                    this.logger(messages.system.botStateLoaded(this.state.claimLimit));
+                    this.logger(messages.system.botStateLoaded());
                 } else {
                     await this.save(); // Save default state
                     this.logger('Invalid state format, using defaults', 'WARN');
@@ -47,13 +47,13 @@ class BotState {
                 if (error.code === 'ENOENT') {
                     // File doesn't exist yet, create with default values
                     await this.save();
-                    this.logger('State file not found, created with defaults');
+                    this.logger(messages.system.botStateCreated());
                 } else {
                     throw error;
                 }
             }
         } catch (error) {
-            this.logger(`State error: ${error.message}`, 'ERROR');
+            this.logger(messages.system.botStateError(error), 'ERROR');
         }
     }
     
@@ -66,10 +66,10 @@ class BotState {
             
             const data = JSON.stringify(this.state, null, 2); // Pretty format with 2 spaces
             await fs.writeFile(this.stateFile, data, 'utf8');
-            this.logger(`Bot state saved: ${this.state.claimLimit} codes claimable`);
+            this.logger(messages.system.botStateSaved());
             return true;
         } catch (error) {
-            this.logger(`State save error: ${error.message}`, 'ERROR');
+            this.logger(messages.system.botStateError(error), 'ERROR');
             return false;
         }
     }

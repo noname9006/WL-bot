@@ -22,6 +22,7 @@ const config = require('./config');
 const messages = require('./messages');
 const Whitelist = require('./whitelist');
 const BotState = require('./botstate');
+const mod = require('./mod');
 
 class InviteBot {
     constructor() {
@@ -71,6 +72,9 @@ class InviteBot {
             }
             
             this.registerSlashCommands();
+			
+			mod.init(this.client);
+    this.log('Base64 moderation module initialized');
         });
 
         // Handle slash commands and button interactions

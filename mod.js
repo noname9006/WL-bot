@@ -40,17 +40,21 @@ module.exports = {
                 if (this.pendingModMessages.has(message.channelId)) return;
                 
                 // Create embed
-                const embed = new EmbedBuilder()
-                    .setColor('#FF0000')
-					.setTitle ('To keep it organized, please post invites on Twitter\n')
-                    .setDescription(
-                        'To make your codes visible to everyone, add this to your post:\n\n' +
-                        '**\`#Botanix2100 @BotanixLabs\`**\n\n' +
-                        '*Why?*\n' +
-                        '✓ Prevents spam in Discord\n' +
-                        '✓ Helps others find codes faster\n' +
-                        '✓ Ensures fair access for all'
-                    );
+                // Create embed
+const embed = new EmbedBuilder()
+    .setColor('#FF0000')
+    .setTitle('To keep it organized, please post invites on Twitter\n')
+    .setDescription(
+        'To make your codes visible to everyone, add this to your post:\n' +
+        '**`#Botanix2100 @BotanixLabs`**\n\n' +
+        '*Why?*\n' +
+        '✓ Prevents spam in Discord\n' +
+        '✓ Helps others find codes faster\n' +
+        '✓ Ensures fair access for all\n\n' +
+        '[Looking for invite codes? Check here!](https://x.com/search?q=%23Botanix2100%20%40BotanixLabs)'
+    )
+    .setImage('https://media.discordapp.net/attachments/1317881540176248904/1386310355067732029/2100logo_copy_3.png');
+
                 
                 // Send the embed and store the message reference
                 const sentMessage = await message.channel.send({ embeds: [embed] });

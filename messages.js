@@ -34,7 +34,7 @@ const messages = {
             
         // 3. User is not eligible
         notEligible: () => 
-            `Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.\n\nMeanwрile, keep your eyes on #Botanix2100 on Twitter — the door opens there`,
+            `Sorry, you're not yet eligible. Stay tuned and wait for announcements not to miss your turn.\n\nIn the meantime, keep your eyes on #Botanix2100 on Twitter and the https://discord.com/channels/937915188903018498/1389926602921611365 channel in Discord — the door opens there`,
             
         // Error and system messages
         channelRestricted: () => 
@@ -47,10 +47,10 @@ const messages = {
             `An error occurred while processing your request. Please try again later.`,
             
         noInvitesAvailable: () => 
-            `There are no codes currently available, please wait for announcements or check later\n\nMeanwрile, keep your eyes on #Botanix2100 on Twitter — the door opens there`,
+            `There are no codes currently available, please wait for announcements or check later\n\nIn the meantime, keep your eyes on #Botanix2100 on Twitter and the https://discord.com/channels/937915188903018498/1389926602921611365 channel in Discord — the door opens there`,
             
         limitReached: () => 
-            `There are no codes currently available, please wait for announcements or check later\n\nMeanwрile, keep your eyes on #Botanix2100 on Twitter — the door opens there`
+            `There are no codes currently available, please wait for announcements or check later\n\nIn the meantime, keep your eyes on #Botanix2100 on Twitter and the https://discord.com/channels/937915188903018498/1389926602921611365 channel in Discord — the door opens there`,
     },
     
     // Messages for admin commands

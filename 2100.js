@@ -23,6 +23,7 @@ const messages = require('./messages');
 const Whitelist = require('./whitelist');
 const BotState = require('./botstate');
 const mod = require('./mod');
+const notificator = require('./notificator');
 
 class InviteBot {
     constructor() {
@@ -75,6 +76,8 @@ class InviteBot {
 			
 			mod.init(this.client);
     this.log('Base64 moderation module initialized');
+            notificator.init(this.client);
+            this.log('Notification scheduler initialized');
         });
 
         // Handle slash commands and button interactions

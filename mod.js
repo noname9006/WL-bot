@@ -2,6 +2,7 @@ const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const SuspiciousBase64Detector = require('./base64'); // Fixed import
 const ModerationLogger = require('./mod-log');
 const dotenv = require('dotenv');
+const config = require('./config'); // Import config
 
 // Load environment variables
 dotenv.config();
@@ -42,6 +43,12 @@ module.exports = {
         this.notificationsEnabled = process.env.NOTIFICATIONS !== 'OFF';
         this.deleteEnabled = process.env.DELETE !== 'NO';
         
+        // Get allowed channels from config/env
+        this.allowedChannels = null;
+        if (process.env.ALLOWED_CHANNEL) {
+            this.allowedChannels = process.env.ALLOWED_CHANNEL.split(',').map(id => id.trim()).filter(Boolean);
+        }
+        
         // Listen for message events
         client.on('messageCreate', this.handleMessage.bind(this));
         
@@ -70,6 +77,8 @@ module.exports = {
      * @param {Object} message - Discord message object
      */
     async handleMessage(message) {
+        // Debug logging for channel logic
+        console.log('[MOD][DEBUG] allowedChannels:', this.allowedChannels, 'message.channelId:', message.channelId);
         // Ignore bot messages
         if (message.author.bot) return;
         
@@ -77,6 +86,19 @@ module.exports = {
         if (message.member && message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return;
         }
+        
+        // If ALLOWED_CHANNEL is set, skip moderation only in those channels
+        if (this.allowedChannels && this.allowedChannels.length > 0) {
+            if (this.allowedChannels.includes(message.channelId)) {
+                console.log('[MOD][DEBUG] Skipping moderation for allowed channel:', message.channelId);
+                return; // Allow codes in allowed channels
+            } else {
+                console.log('[MOD][DEBUG] Moderation enforced for channel:', message.channelId);
+            }
+        } else {
+            console.log('[MOD][DEBUG] Moderation enforced for all channels (no allowedChannels set)');
+        }
+        // If ALLOWED_CHANNEL is not set, moderate everywhere (no early return)
         
         // Use the Base64 detector to check the message
         const scanResults = this.base64Detector.scanText(message.content);

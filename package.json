@@ -1,0 +1,21 @@
+{
+  "name": "wl-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot designed to distribute invite codes with fine-grained, role-based access control",
+  "main": "2100.js",
+  "scripts": {
+    "start": "node 2100.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "whitelist",
+    "invite-codes"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.0.0",
+    "dotenv": "^16.0.0"
+  }
+}
